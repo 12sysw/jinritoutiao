@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今日头条文章提取器</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- 深色模式支持 -->
+    <script>
+        // 检测系统深色模式并应用
+        function detectColorScheme() {
+            const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            const isDarkMode = darkModeMediaQuery.matches;
+            
+            if (isDarkMode) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+            
+            // 监听系统主题变化
+            darkModeMediaQuery.addEventListener('change', (e) => {
+                document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            });
+        }
+        
+        // 页面加载时执行
+        document.addEventListener('DOMContentLoaded', detectColorScheme);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>今日头条文章提取器</h1>
+        </div>
+        <div class="content">
+            <!-- 今日头条热榜区域 -->
+            <div id="hotNews" class="hot-news-container">
+                <h2 class="section-title"><i class="fas fa-fire"></i> 今日头条热榜</h2>
+                <div id="hotNewsLoading" class="loading">
+                    <div class="spinner"></div>
+                    <span>加载热榜中...</span>
+                </div>
+                <div id="hotNewsList" class="hot-news-list"></div>
+                <button id="refreshHotNews" class="refresh-button"><i class="fas fa-sync-alt"></i> 刷新热榜</button>
+            </div>
+            
+            <div class="input-group">
+                <label for="articleUrls">输入文章链接（每行一个）</label>
+                <textarea id="articleUrls" placeholder="请输入今日头条文章链接，每行一个链接" required></textarea>
+            </div>
+            <div class="action-row">
+                <button onclick="extractArticles()" class="extract-button">提取文章</button>
+                <button id="randomVideoBtn" class="video-button"><i class="fas fa-video"></i> 小姐姐视频</button>
+            </div>
+            
+            <!-- 小姐姐视频区域 -->
+            <div id="randomVideo" class="random-video-container" style="display: none;">
+                <h2 class="section-title"><i class="fas fa-video"></i> 小姐姐视频</h2>
+                <div class="video-wrapper">
+                    <video id="videoPlayer" controls loop playsinline class="video-player">
+                        您的浏览器不支持视频播放。
+                    </video>
+                </div>
+                <div id="videoLoading" class="loading video-loading">
+                    <div class="spinner"></div>
+                    <span>加载视频中...</span>
+                </div>
+                <div id="videoError" class="error-message" style="display: none;"></div>
+                <button id="newVideoBtn" class="secondary-button"><i class="fas fa-sync-alt"></i> 换一个视频</button>
+                <p class="video-note">提示：如在手机上播放失败，请尝试将网页放到服务器上访问</p>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>正在提取文章内容，请稍候...</span>
+            </div>
+            <div id="result"></div>
+            
+            <!-- AI分析区域 -->
+            <div id="aiAnalysis" class="ai-analysis" style="display: none;">
+                <h2 class="section-title"><i class="fas fa-robot"></i> AI分析助手</h2>
+                
+                <!-- 模型选择 -->
+                <div class="model-selector">
+                    <label for="aiModel">选择分析模型：</label>
+                    <select id="aiModel" class="select-input">
+                        <option value="deepseek-ai/DeepSeek-R1">DeepSeek-R1 - 中文分析专家模型</option>
+                        <option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B">Qwen-7B - 轻量化高速模型</option>
+                    </select>
+                </div>
+                
+                <!-- 分析模式 -->
+                <div class="analysis-mode">
+                    <div class="mode-toggles">
+                        <button id="singleAnalysisMode" class="mode-btn active" data-mode="single"><i class="fas fa-file-alt"></i> 单次分析</button>
+                        <button id="chatMode" class="mode-btn" data-mode="chat"><i class="fas fa-comments"></i> 对话模式</button>
+                    </div>
+                </div>
+                
+                <!-- 提示词输入区域 -->
+                <div class="prompt-section">
+                    <label for="aiPrompt">输入AI提示词：</label>
+                    <textarea id="aiPrompt" placeholder="请输入分析要求..." rows="4"></textarea>
+                    <button id="startAI" class="primary-button"><i class="fas fa-brain"></i> 开始AI分析</button>
+                </div>
+
+                <!-- 进度显示 -->
+                <div id="aiProgress" class="progress-section" style="display: none;">
+                    <div class="progress-container">
+                        <div class="progress-step">
+                            <span class="step-number">1</span>
+                            <div class="step-label">文本预处理</div>
+                        </div>
+                        <div class="progress-line"></div>
+                        <div class="progress-step">
+                            <span class="step-number">2</span>
+                            <div class="step-label">AI处理中</div>
+                        </div>
+                        <div class="progress-line"></div>
+                        <div class="progress-step">
+                            <span class="step-number">3</span>
+                            <div class="step-label">生成结果</div>
+                        </div>
+                    </div>
+                    <div id="progressMessage" class="progress-message">准备中...</div>
+                </div>
+
+                <!-- AI思考过程 -->
+                <div id="aiThinking" class="thinking-section" style="display: none;">
+                    <div class="thinking-header">
+                        <i class="fas fa-spinner fa-spin"></i> AI思考过程
+                    </div>
+                    <div id="thinkingContent" class="thinking-content"></div>
+                </div>
+
+                <!-- 对话区域 -->
+                <div id="chatContainer" class="chat-container" style="display: none;">
+                    <div class="chat-info">
+                        <i class="fas fa-info-circle"></i> 对话模式下，您可以直接与AI进行交流，不会自动分析提取的文章
+                    </div>
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input-container">
+                        <textarea id="chatInput" placeholder="在这里输入您的指令或问题..." rows="2"></textarea>
+                        <button id="sendMessage" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+
+                <!-- 结果显示区域 -->
+                <div id="aiResult" class="result-section"></div>
+                
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <button id="clearAI" class="secondary-button"><i class="fas fa-trash-alt"></i> 清除结果</button>
+                    <button id="copyResult" class="secondary-button"><i class="fas fa-copy"></i> 复制结果</button>
+                </div>
+            </div>
+            
+            <div class="footer">
+                提取内容仅供学习参考，请勿用于非法用途
+            </div>
+        </div>
+    </div>
+
+    <!-- 主题切换按钮 -->
+    <div class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
