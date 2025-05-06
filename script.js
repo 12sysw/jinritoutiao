@@ -13,7 +13,7 @@ const HOTNEWS_API = {
 
 // 小姐姐视频API配置
 const VIDEO_API = {
-    baseUrl: 'https://api.guiguiya.com/api/xjj'
+    baseUrl: 'https://api.guiguiya.com/api/video/dyxjj?apiKey=7cd19eddedc85bf572e69083ce7bc784'
 };
 
 // 定义可用的AI模型
@@ -141,65 +141,90 @@ async function fetchRandomVideo() {
         // 检测是否为移动设备
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // 直接使用接口地址作为视频源，添加时间戳和随机数防止缓存
+        // 构建视频URL，确保参数正确拼接
         const timestamp = new Date().getTime();
         const randomNum = Math.floor(Math.random() * 1000);
+        const videoUrl = `${VIDEO_API.baseUrl}&t=${timestamp}&r=${randomNum}`;
         
-        // 直接访问视频接口
-        const videoUrl = `${VIDEO_API.baseUrl}?t=${timestamp}&r=${randomNum}`;
+        // 设置加载超时
+        const loadTimeout = setTimeout(() => {
+            if (videoLoading.style.display !== 'none') {
+                videoLoading.style.display = 'none';
+                videoError.textContent = '视频加载超时，请检查网络连接后重试';
+                videoError.style.display = 'block';
+            }
+        }, 15000); // 15秒超时
         
-        // 对于移动设备，避免自动播放，并使用视频预览方式
+        // 对于移动设备，优化播放体验
         if (isMobile) {
-            videoPlayer.autoplay = false; // 禁用自动播放
-            videoPlayer.preload = "auto"; // 预加载视频数据
+            videoPlayer.autoplay = false;
+            videoPlayer.preload = "metadata"; // 只预加载元数据，减少流量消耗
             
-            // 显示点击播放提示
-            const playTipDiv = document.createElement('div');
-            playTipDiv.className = 'video-play-tip';
-            playTipDiv.innerHTML = '<i class="fas fa-play-circle"></i> 点击开始播放';
-            videoContainer.insertBefore(playTipDiv, videoPlayer.nextSibling);
+            // 创建并显示播放提示
+            let playTipDiv = document.querySelector('.video-play-tip');
+            if (!playTipDiv) {
+                playTipDiv = document.createElement('div');
+                playTipDiv.className = 'video-play-tip';
+                playTipDiv.innerHTML = '<i class="fas fa-play-circle"></i> 点击开始播放';
+                videoContainer.insertBefore(playTipDiv, videoPlayer.nextSibling);
+            }
+            playTipDiv.style.display = 'flex';
             
-            // 添加点击事件监听器
-            playTipDiv.addEventListener('click', function() {
-                videoPlayer.play().catch(error => {
+            // 优化点击事件处理
+            playTipDiv.onclick = async function() {
+                try {
+                    await videoPlayer.play();
+                    playTipDiv.style.display = 'none';
+                } catch (error) {
                     console.error('播放失败:', error);
-                    videoError.textContent = '视频播放失败，可能需要您手动点击视频开始播放';
+                    videoError.textContent = '视频播放失败，请尝试点击视频播放按钮';
                     videoError.style.display = 'block';
-                });
-                playTipDiv.style.display = 'none';
-            });
+                }
+            };
         }
         
         // 设置视频源
         videoPlayer.src = videoUrl;
         videoPlayer.style.display = 'block';
         
-        // 设置视频加载事件
+        // 视频加载成功
         videoPlayer.onloadeddata = function() {
+            clearTimeout(loadTimeout);
             videoLoading.style.display = 'none';
         };
         
-        // 设置视频错误事件
+        // 视频加载错误
         videoPlayer.onerror = function(e) {
+            clearTimeout(loadTimeout);
             console.error('视频加载失败', e);
             videoLoading.style.display = 'none';
             
+            let errorMessage = '';
             if (isMobile) {
-                videoError.innerHTML = `
+                errorMessage = `
                     视频加载失败，可能原因：<br>
-                    1. 您正在使用本地文件方式打开，请将网页部署到服务器<br>
+                    1. 网络连接不稳定，请检查网络后重试<br>
                     2. 浏览器限制了视频播放，请尝试使用其他浏览器<br>
-                    3. <a href="${videoUrl}" target="_blank">点击这里</a>直接访问视频
+                    3. 如果使用本地文件方式打开，请将网页部署到服务器<br>
+                    4. <a href="${videoUrl}" target="_blank">点击这里</a>直接访问视频
                 `;
             } else {
-                videoError.textContent = '视频加载失败，请点击"换一个视频"重试';
+                errorMessage = '视频加载失败，请点击"换一个视频"重试';
             }
+            videoError.innerHTML = errorMessage;
             videoError.style.display = 'block';
         };
+        
+        // 添加视频播放错误处理
+        videoPlayer.onstalled = function() {
+            videoError.textContent = '视频播放卡顿，请检查网络连接';
+            videoError.style.display = 'block';
+        };
+        
     } catch (error) {
         console.error('获取视频失败:', error);
         videoLoading.style.display = 'none';
-        videoError.textContent = `获取视频失败: ${error.message}`;
+        videoError.textContent = '获取视频失败，请稍后重试';
         videoError.style.display = 'block';
     }
 }
